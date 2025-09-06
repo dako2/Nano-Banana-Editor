@@ -1,0 +1,5 @@
+{
+  "name": "Nano-Banana-Shorts-Editor",
+  "description": "An AI-powered video shorts editor that uses Gemini to analyze video content and suggest edits, and allows frame-by-frame editing using the 'Nano Banana' (gemini-2.5-flash-image-preview) model.",
+  "requestFramePermissions": []
+}
