@@ -1,15 +1,15 @@
-
 import React from 'react';
 import type { Frame } from '../types';
+import { useVideo } from '../contexts/VideoContext';
 
 interface FrameGalleryProps {
-  frames: Frame[];
-  editedFrames: Map<number, Frame>;
   selectedFrameIndex: number | null;
   onFrameSelect: (index: number) => void;
 }
 
-export const FrameGallery: React.FC<FrameGalleryProps> = ({ frames, editedFrames, selectedFrameIndex, onFrameSelect }) => {
+export const FrameGallery: React.FC<FrameGalleryProps> = ({ selectedFrameIndex, onFrameSelect }) => {
+  const { frames, editedFrames } = useVideo();
+
   if (frames.length === 0) {
     return null;
   }

@@ -1,13 +1,12 @@
-
 import React, { useState } from 'react';
 import type { AISuggestion, Frame } from '../types';
+import { useVideo } from '../contexts/VideoContext';
 
 interface AIControlPanelProps {
   onAnalyze: () => void;
   onEdit: (prompt: string) => void;
   suggestions: AISuggestion[];
   selectedFrame: Frame | null;
-  hasFrames: boolean;
 }
 
 const EditSection: React.FC<{ selectedFrame: Frame | null; onEdit: (prompt: string) => void }> = ({ selectedFrame, onEdit }) => {
@@ -46,8 +45,10 @@ const EditSection: React.FC<{ selectedFrame: Frame | null; onEdit: (prompt: stri
 };
 
 
-export const AIControlPanel: React.FC<AIControlPanelProps> = ({ onAnalyze, onEdit, suggestions, selectedFrame, hasFrames }) => {
+export const AIControlPanel: React.FC<AIControlPanelProps> = ({ onAnalyze, onEdit, suggestions, selectedFrame }) => {
     const [hasAnalyzed, setHasAnalyzed] = useState(false);
+    const { frames } = useVideo();
+    const hasFrames = frames.length > 0;
 
     const handleAnalyzeClick = () => {
         onAnalyze();

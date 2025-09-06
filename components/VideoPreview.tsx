@@ -1,12 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import type { Frame } from '../types';
 import { formatTime } from '../utils/formatTime';
-
-interface VideoPreviewProps {
-  videoUrl: string;
-  editedFrames: Map<number, Frame>;
-  trimRange: { start: number; end: number } | null;
-}
+import { useVideo } from '../contexts/VideoContext';
 
 // --- SVG Icons for Controls ---
 
@@ -34,7 +29,8 @@ const FullscreenExitIcon: React.FC = () => (
 );
 
 
-export const VideoPreview: React.FC<VideoPreviewProps> = ({ videoUrl, editedFrames, trimRange }) => {
+export const VideoPreview: React.FC = () => {
+  const { videoUrl, editedFrames, trimRange, videoDimensions } = useVideo();
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -73,13 +69,36 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ videoUrl, editedFram
     if (!video || !canvas?.getContext('2d')) return;
     const ctx = canvas.getContext('2d')!;
     
-    // Calculate which frame to show based on playback time relative to the clip's start.
     const currentFrameIndex = Math.floor((video.currentTime - trimStart) * 1); // Assuming 1 FPS for now
     const editedFrameImage = preloadedImages.current.get(currentFrameIndex);
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (editedFrameImage?.complete && editedFrameImage.naturalHeight !== 0) {
-      ctx.drawImage(editedFrameImage, 0, 0, canvas.width, canvas.height);
+      const canvasWidth = canvas.width;
+      const canvasHeight = canvas.height;
+      const imgWidth = editedFrameImage.naturalWidth;
+      const imgHeight = editedFrameImage.naturalHeight;
+      
+      const canvasAspect = canvasWidth / canvasHeight;
+      const imgAspect = imgWidth / imgHeight;
+
+      let drawWidth, drawHeight, offsetX, offsetY;
+
+      if (imgAspect > canvasAspect) {
+        // Image is wider than canvas aspect ratio (fit to width)
+        drawWidth = canvasWidth;
+        drawHeight = drawWidth / imgAspect;
+        offsetX = 0;
+        offsetY = (canvasHeight - drawHeight) / 2;
+      } else {
+        // Image is taller than or same aspect as canvas (fit to height)
+        drawHeight = canvasHeight;
+        drawWidth = drawHeight * imgAspect;
+        offsetY = 0;
+        offsetX = (canvasWidth - drawWidth) / 2;
+      }
+
+      ctx.drawImage(editedFrameImage, offsetX, offsetY, drawWidth, drawHeight);
     }
     animationFrameId.current = requestAnimationFrame(renderLoop);
   }, [trimStart]);
@@ -87,32 +106,37 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ videoUrl, editedFram
   // Effect to initialize the video when the source URL or trim range changes.
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || !videoDimensions) return;
 
     setIsReady(false); // Mark as not ready until metadata is loaded for the new source
+    
+    // Set canvas dimensions from context - the single source of truth
+    canvas.width = videoDimensions.width;
+    canvas.height = videoDimensions.height;
+
 
     const handleLoadedMetadata = () => {
       setVideoDuration(video.duration);
-      // Set the initial currentTime to the start of the clip.
       video.currentTime = trimStart;
       setCurrentTime(trimStart);
-      
-      canvasRef.current!.width = video.videoWidth;
-      canvasRef.current!.height = video.videoHeight;
       setIsReady(true); // Video is now ready for interaction
     };
 
     video.addEventListener('loadedmetadata', handleLoadedMetadata);
 
-    // If the src attribute is the same, the browser might not reload it. Force a load.
-    if(video.currentSrc === videoUrl && video.readyState === 0) {
+    if(videoUrl && video.currentSrc !== videoUrl) {
+      video.src = videoUrl;
       video.load();
+    } else if (video.readyState > 0) {
+      // If src is the same but component re-mounted, metadata might be loaded
+      handleLoadedMetadata();
     }
     
     return () => {
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
     };
-  }, [videoUrl, trimStart]);
+  }, [videoUrl, trimStart, videoDimensions]);
 
   // Effect to manage continuous playback controls (play, pause, timeupdate).
   useEffect(() => {
@@ -120,7 +144,6 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ videoUrl, editedFram
       if (!video) return;
 
       const handleTimeUpdate = () => {
-          // If playback goes past the clip end, pause and snap to the end.
           if (video.currentTime >= effectiveTrimEnd) {
               video.pause();
               video.currentTime = effectiveTrimEnd;
@@ -129,7 +152,6 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ videoUrl, editedFram
       };
       
       const handlePlay = () => {
-        // If something caused playback to start before the clip, jump to the start.
         if (video.currentTime < trimStart) {
             video.currentTime = trimStart;
         }
@@ -212,12 +234,13 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ videoUrl, editedFram
         document.exitFullscreen();
     }
   };
+  
+  if (!videoUrl) return null;
 
   return (
     <div ref={containerRef} className="relative w-full aspect-video bg-black rounded-md group overflow-hidden">
       <video
         ref={videoRef}
-        src={videoUrl}
         className="w-full h-full rounded-md"
         crossOrigin="anonymous"
         playsInline
