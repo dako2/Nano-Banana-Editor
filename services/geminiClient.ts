@@ -16,22 +16,22 @@ export const geminiClient = {
    * Generates content with a JSON response, typically for structured data extraction.
    * @param model The model to use (e.g., 'gemini-2.5-flash').
    * @param prompt The text prompt.
-   * @param imageParts An array of image parts for the model to analyze.
+   * @param dataParts An array of data parts (image, video, etc.) for the model to analyze.
    * @param schema The JSON schema the response should conform to.
    * @returns The raw GenerateContentResponse from the API.
    */
   async generateJson(
     model: string,
     prompt: string,
-    imageParts: any[],
-    schema: any
+    dataParts: any[],
+    schema?: any
   ): Promise<GenerateContentResponse> {
     try {
       return await ai.models.generateContent({
         model,
-        contents: { parts: [{ text: prompt }, ...imageParts] },
+        contents: { parts: [{ text: prompt }, ...dataParts] },
         config: {
-          responseMimeType: "application/json",
+          responseMimeType: schema ? "application/json" : undefined,
           responseSchema: schema,
         },
       });

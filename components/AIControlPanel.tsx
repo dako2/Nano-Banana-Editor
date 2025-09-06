@@ -5,27 +5,54 @@ import { useVideo } from '../contexts/VideoContext';
 interface AIControlPanelProps {
   onAnalyze: () => void;
   onEdit: (prompt: string) => void;
+  onBatchEdit: (prompt: string, frameIndices: number[]) => void;
   onAnalyzeClips: () => void;
-  onUseClip?: (startFrame: number, endFrame: number) => void;
+  onUseClip?: (startTime: number, endTime: number) => void;
   suggestions: AISuggestion[];
   clipSuggestion: ClipSuggestion | null;
   selectedFrame: Frame | null;
+  selectedFrameIndices: number[];
 }
 
-const EditSection: React.FC<{ selectedFrame: Frame | null; onEdit: (prompt: string) => void }> = ({ selectedFrame, onEdit }) => {
+const EditSection: React.FC<{ 
+    selectedFrame: Frame | null; 
+    selectedFrameIndices: number[];
+    onEdit: (prompt: string) => void;
+    onBatchEdit: (prompt: string, frameIndices: number[]) => void;
+}> = ({ selectedFrame, selectedFrameIndices, onEdit, onBatchEdit }) => {
     const [prompt, setPrompt] = useState('');
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if(prompt.trim()) {
-            onEdit(prompt);
+            if (selectedFrameIndices.length > 1) {
+                onBatchEdit(prompt, selectedFrameIndices);
+            } else {
+                onEdit(prompt);
+            }
         }
     };
+
+    const hasMultipleSelection = selectedFrameIndices.length > 1;
+    const hasSelection = selectedFrame || hasMultipleSelection;
     
     return (
         <div className="mt-6 p-4 border border-dark-border rounded-lg bg-gray-900/50">
-            <h3 className="text-lg font-display text-brand-pink mb-3">Edit Frame {selectedFrame ? `#${selectedFrame.id + 1}` : ''}</h3>
-            {selectedFrame ? (
+            <h3 className="text-lg font-display text-brand-pink mb-3">
+                {hasMultipleSelection 
+                    ? `Edit ${selectedFrameIndices.length} Frames` 
+                    : `Edit Frame ${selectedFrame ? `#${selectedFrame.id + 1}` : ''}`
+                }
+            </h3>
+            {hasMultipleSelection && (
+                <div className="mb-3 p-2 bg-brand-teal/20 border border-brand-teal/30 rounded text-sm">
+                    <span className="text-brand-teal font-semibold">Multi-selection:</span>
+                    <span className="text-gray-300 ml-1">
+                        Frames {selectedFrameIndices.map(i => i + 1).join(', ')}
+                    </span>
+                </div>
+            )}
+            {hasSelection ? (
                 <form onSubmit={handleSubmit}>
                     <textarea
                         value={prompt}
@@ -37,18 +64,21 @@ const EditSection: React.FC<{ selectedFrame: Frame | null; onEdit: (prompt: stri
                         type="submit"
                         disabled={!prompt.trim()}
                         className="mt-3 w-full bg-brand-pink text-white font-bold py-2 px-4 rounded-md hover:bg-pink-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-bg focus:ring-brand-pink transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed">
-                        Generate Edit
+                        {hasMultipleSelection ? `Generate Edit for ${selectedFrameIndices.length} Frames` : 'Generate Edit'}
                     </button>
                 </form>
             ) : (
-                <p className="text-gray-400 italic">Select a frame from the gallery to start editing.</p>
+                <p className="text-gray-400 italic">Select frame(s) from the gallery to start editing. Hold Shift to select multiple frames.</p>
             )}
         </div>
     );
 };
 
-
-const ClipAnalysisSection: React.FC<{ clipSuggestion: ClipSuggestion | null; onAnalyzeClips: () => void; onUseClip?: (startFrame: number, endFrame: number) => void }> = ({ clipSuggestion, onAnalyzeClips, onUseClip }) => {
+const ClipAnalysisSection: React.FC<{ 
+    clipSuggestion: ClipSuggestion | null; 
+    onAnalyzeClips: () => void; 
+    onUseClip?: (startTime: number, endTime: number) => void 
+}> = ({ clipSuggestion, onAnalyzeClips, onUseClip }) => {
     const [hasAnalyzedClips, setHasAnalyzedClips] = useState(false);
     const { frames } = useVideo();
     const hasFrames = frames.length > 0;
@@ -92,7 +122,7 @@ const ClipAnalysisSection: React.FC<{ clipSuggestion: ClipSuggestion | null; onA
                             <span className="font-semibold">Duration:</span> {clipSuggestion.duration.toFixed(1)}s
                         </div>
                         <div className="text-sm text-gray-400 mb-2">
-                            <span className="font-semibold">Frames:</span> {clipSuggestion.startFrameIndex + 1} - {clipSuggestion.endFrameIndex + 1}
+                            <span className="font-semibold">Time Range:</span> {clipSuggestion.startTime.toFixed(1)}s - {clipSuggestion.endTime.toFixed(1)}s
                         </div>
                         <p className="text-sm text-gray-300 mb-3">{clipSuggestion.reason}</p>
                         
@@ -109,7 +139,7 @@ const ClipAnalysisSection: React.FC<{ clipSuggestion: ClipSuggestion | null; onA
                         
                         {onUseClip && (
                             <button
-                                onClick={() => onUseClip(clipSuggestion.startFrameIndex, clipSuggestion.endFrameIndex)}
+                                onClick={() => onUseClip(clipSuggestion.startTime, clipSuggestion.endTime)}
                                 className="w-full mt-3 bg-gradient-to-r from-green-600 to-teal-600 text-white font-bold py-2 px-4 rounded-md hover:from-green-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-bg focus:ring-green-500 transition-colors"
                             >
                                 Use This 7-Second Clip
@@ -122,7 +152,17 @@ const ClipAnalysisSection: React.FC<{ clipSuggestion: ClipSuggestion | null; onA
     );
 };
 
-export const AIControlPanel: React.FC<AIControlPanelProps> = ({ onAnalyze, onEdit, onAnalyzeClips, onUseClip, suggestions, clipSuggestion, selectedFrame }) => {
+export const AIControlPanel: React.FC<AIControlPanelProps> = ({ 
+    onAnalyze, 
+    onEdit, 
+    onBatchEdit,
+    onAnalyzeClips, 
+    onUseClip, 
+    suggestions, 
+    clipSuggestion, 
+    selectedFrame,
+    selectedFrameIndices 
+}) => {
     const [hasAnalyzed, setHasAnalyzed] = useState(false);
     const { frames } = useVideo();
     const hasFrames = frames.length > 0;
@@ -150,7 +190,7 @@ export const AIControlPanel: React.FC<AIControlPanelProps> = ({ onAnalyze, onEdi
                     <ul className="space-y-3">
                         {suggestions.map((s, i) => (
                             <li key={i} className="p-3 bg-gray-900/50 border-l-4 border-brand-teal rounded-r-md text-sm">
-                                <span className="font-bold text-gray-300">Frame {s.frameIndex + 1}:</span>
+                                <span className="font-bold text-gray-300">Time {s.frameIndex.toFixed(1)}s:</span>
                                 <p className="text-gray-400">{s.suggestion}</p>
                             </li>
                         ))}
@@ -162,8 +202,17 @@ export const AIControlPanel: React.FC<AIControlPanelProps> = ({ onAnalyze, onEdi
                 )}
             </div>
 
-            <ClipAnalysisSection clipSuggestion={clipSuggestion} onAnalyzeClips={onAnalyzeClips} onUseClip={onUseClip} />
-            <EditSection selectedFrame={selectedFrame} onEdit={onEdit} />
+            <ClipAnalysisSection 
+                clipSuggestion={clipSuggestion} 
+                onAnalyzeClips={onAnalyzeClips} 
+                onUseClip={onUseClip} 
+            />
+            <EditSection 
+                selectedFrame={selectedFrame} 
+                selectedFrameIndices={selectedFrameIndices}
+                onEdit={onEdit} 
+                onBatchEdit={onBatchEdit}
+            />
         </div>
     );
 };

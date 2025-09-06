@@ -6,8 +6,8 @@ export const suggestionSchema = {
       type: Type.OBJECT,
       properties: {
         frameIndex: {
-          type: Type.INTEGER,
-          description: 'The index of the frame in the provided array that this suggestion applies to.',
+          type: Type.NUMBER,
+          description: 'The time in seconds, relative to the start of the clip, where the suggestion applies. Can be a float.',
         },
         suggestion: {
           type: Type.STRING,
@@ -21,13 +21,13 @@ export const suggestionSchema = {
 export const clipSuggestionSchema = {
     type: Type.OBJECT,
     properties: {
-      startFrameIndex: {
-        type: Type.INTEGER,
-        description: 'The starting frame index for the 7-second clip (0-based).',
+      startTime: {
+        type: Type.NUMBER,
+        description: 'The starting time in seconds for the 7-second clip (relative to the analyzed video segment).',
       },
-      endFrameIndex: {
-        type: Type.INTEGER,
-        description: 'The ending frame index for the 7-second clip (0-based).',
+      endTime: {
+        type: Type.NUMBER,
+        description: 'The ending time in seconds for the 7-second clip (relative to the analyzed video segment).',
       },
       duration: {
         type: Type.NUMBER,
@@ -50,5 +50,5 @@ export const clipSuggestionSchema = {
         description: 'Specific editing suggestions to enhance the viral potential of this clip.',
       },
     },
-    required: ['startFrameIndex', 'endFrameIndex', 'duration', 'reason', 'viralPotential', 'editingSuggestions'],
+    required: ['startTime', 'endTime', 'duration', 'reason', 'viralPotential', 'editingSuggestions'],
 };

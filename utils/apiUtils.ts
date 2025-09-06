@@ -13,3 +13,24 @@ export const base64ToPart = (data: string) => {
         }
     };
 };
+
+/**
+ * Converts a File object into a Gemini API `Part` object with inlineData.
+ * @param file The file to convert.
+ * @returns A promise that resolves to the Gemini Part object.
+ */
+export const fileToPart = async (file: File) => {
+    const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+
+    return {
+        inlineData: {
+            mimeType: file.type,
+            data: base64Data.substring(base64Data.indexOf(',') + 1),
+        }
+    };
+};

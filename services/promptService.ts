@@ -1,10 +1,27 @@
 // services/promptService.ts
 
-const response = await fetch('/prompts.json');
-if (!response.ok) {
-  throw new Error("Failed to load prompts.json configuration from server.");
+let prompts: Record<string, string> = {};
+let promptsLoaded = false;
+let loadingPromise: Promise<void> | null = null;
+
+/**
+ * Loads prompts from the JSON file
+ */
+async function loadPrompts(): Promise<void> {
+  if (promptsLoaded) return;
+  if (loadingPromise) return loadingPromise;
+  
+  loadingPromise = (async () => {
+    const response = await fetch('/prompts.json');
+    if (!response.ok) {
+      throw new Error("Failed to load prompts.json configuration from server.");
+    }
+    prompts = await response.json();
+    promptsLoaded = true;
+  })();
+  
+  return loadingPromise;
 }
-const prompts: Record<string, string> = await response.json();
 
 /**
  * An abstract system for retrieving and formatting prompts.
@@ -17,7 +34,9 @@ export const promptService = {
    * @returns The formatted prompt string.
    * @throws An error if the prompt key is not found.
    */
-  get(key: string, variables?: Record<string, string>): string {
+  async get(key: string, variables?: Record<string, string>): Promise<string> {
+    await loadPrompts();
+    
     const template = prompts[key];
 
     if (typeof template !== 'string') {

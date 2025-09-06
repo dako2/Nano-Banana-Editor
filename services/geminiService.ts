@@ -2,7 +2,7 @@ import type { AISuggestion, Frame, ClipSuggestion } from '../types';
 import { geminiClient } from './geminiClient';
 import { promptService } from './promptService';
 import { suggestionSchema, clipSuggestionSchema } from '../schemas/geminiSchemas';
-import { base64ToPart } from '../utils/apiUtils';
+import { base64ToPart, fileToPart } from '../utils/apiUtils';
 
 /**
  * Contains application-specific logic for interacting with the Gemini API
@@ -10,48 +10,68 @@ import { base64ToPart } from '../utils/apiUtils';
  */
 
 /**
- * Analyzes video frames to generate editing suggestions.
- * @param frames An array of base64 encoded frame data.
+ * Analyzes a video file to generate editing suggestions.
+ * @param videoFile The video file to analyze.
+ * @param startTime The start time of the clip to analyze.
+ * @param endTime The end time of the clip to analyze.
  * @returns A promise that resolves to an array of AISuggestions.
  */
-export const analyzeVideoFrames = async (frames: string[]): Promise<AISuggestion[]> => {
-    const prompt = promptService.get('analyzeVideo');
-    
-    const imageParts = frames.map(base64ToPart);
+export const analyzeVideoFile = async (videoFile: File, startTime: number, endTime: number): Promise<AISuggestion[]> => {
+    const prompt = await promptService.get('analyzeVideo', {
+      startTime: startTime.toFixed(2),
+      endTime: endTime.toFixed(2),
+    });
+    const videoPart = await fileToPart(videoFile);
 
     const response = await geminiClient.generateJson(
         "gemini-2.5-flash",
         prompt,
-        imageParts,
-        suggestionSchema
+        [videoPart],
+        suggestionSchema // Enforce the schema for reliable JSON output
     );
 
-    const jsonText = response.text.trim();
+    // Defensively clean the response in case the model still includes markdown
+    let jsonText = response.text.trim();
+    const match = jsonText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (match) {
+        jsonText = match[1];
+    }
+
     const suggestions = JSON.parse(jsonText);
     return suggestions as AISuggestion[];
-};
+}
 
 /**
- * Analyzes video frames to identify the best 7-second clip for viral content.
- * @param frames An array of base64 encoded frame data.
+ * Analyzes a video file to identify the best 7-second clip for viral content.
+ * @param videoFile The video file to analyze.
+ * @param startTime The start time of the clip to analyze.
+ * @param endTime The end time of the clip to analyze.
  * @returns A promise that resolves to a ClipSuggestion.
  */
-export const analyzeVideoForClips = async (frames: string[]): Promise<ClipSuggestion> => {
-    const prompt = promptService.get('sevenSecondShorts');
-    
-    const imageParts = frames.map(base64ToPart);
+export const analyzeVideoForClips = async (videoFile: File, startTime: number, endTime: number): Promise<ClipSuggestion> => {
+    const prompt = await promptService.get('sevenSecondShorts', {
+      startTime: startTime.toFixed(2),
+      endTime: endTime.toFixed(2),
+    });
+    const videoPart = await fileToPart(videoFile);
 
     const response = await geminiClient.generateJson(
         "gemini-2.5-flash",
         prompt,
-        imageParts,
+        [videoPart],
         clipSuggestionSchema
     );
 
-    const jsonText = response.text.trim();
+    let jsonText = response.text.trim();
+    const match = jsonText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (match) {
+        jsonText = match[1];
+    }
+
     const clipSuggestion = JSON.parse(jsonText);
     return clipSuggestion as ClipSuggestion;
-};
+}
+
 
 /**
  * Edits a single frame based on a text prompt and surrounding frame context.
@@ -70,7 +90,7 @@ export const editFrame = async (
 
     const parts: any[] = [];
     
-    const fullPrompt = promptService.get('editFrame', { prompt });
+    const fullPrompt = await promptService.get('editFrame', { prompt });
     
     // Order of parts is important for context: [previous], current, [next], prompt
     if (previousFrame) {

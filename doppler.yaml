@@ -1,0 +1,3 @@
+setup:
+  project: nano-banana-editor
+  config: dev

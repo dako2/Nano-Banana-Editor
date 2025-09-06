@@ -11,9 +11,9 @@ export interface AISuggestion {
 }
 
 export interface ClipSuggestion {
-  startFrameIndex: number;
-  endFrameIndex: number;
-  duration: number; // in seconds
+  startTime: number; // Time in seconds (using time-based approach)
+  endTime: number; // Time in seconds
+  duration: number; // Duration in seconds
   reason: string;
   viralPotential: 'low' | 'medium' | 'high';
   editingSuggestions: string[];
