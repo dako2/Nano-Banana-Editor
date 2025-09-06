@@ -8,11 +8,13 @@ import { useVideoProcessor } from './hooks/useVideoProcessor';
 import { analyzeVideoFrames, editFrame } from './services/geminiService';
 import type { Frame, AISuggestion } from './types';
 import { VideoTrimmer } from './components/VideoTrimmer';
+import { VideoPreview } from './components/VideoPreview';
 
 const App: React.FC = () => {
   const [selectedFileForTrimming, setSelectedFileForTrimming] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>('');
+  const [trimRange, setTrimRange] = useState<{start: number, end: number} | null>(null);
   const [editedFrames, setEditedFrames] = useState<Map<number, Frame>>(new Map());
   const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>([]);
   const [selectedFrameIndex, setSelectedFrameIndex] = useState<number | null>(null);
@@ -32,6 +34,7 @@ const App: React.FC = () => {
   const handleFileSelect = useCallback((file: File) => {
     setVideoFile(null);
     setVideoUrl('');
+    setTrimRange(null);
     setEditedFrames(new Map());
     setAiSuggestions([]);
     setSelectedFrameIndex(null);
@@ -42,8 +45,11 @@ const App: React.FC = () => {
   const handleTrimConfirm = useCallback(async (file: File, startTime: number, endTime: number) => {
     setSelectedFileForTrimming(null);
     setVideoFile(file);
+    // Removed media fragment from URL as it's unreliable with blobs.
+    // Playback is now controlled by JS in VideoPreview.
     const url = URL.createObjectURL(file);
     setVideoUrl(url);
+    setTrimRange({ start: startTime, end: endTime });
     await processVideo(file, 1, { startTime, endTime });
   }, [processVideo]);
 
@@ -123,7 +129,13 @@ const App: React.FC = () => {
             <div className="lg:col-span-8 flex flex-col gap-6 h-full">
               <div className="bg-dark-surface rounded-lg shadow-lg p-4 border border-dark-border">
                 <h2 className="text-xl font-display text-brand-teal mb-4">Video Preview</h2>
-                {videoUrl && <video src={videoUrl} controls className="w-full rounded-md aspect-video"></video>}
+                {videoUrl && (
+                  <VideoPreview
+                    videoUrl={videoUrl}
+                    editedFrames={editedFrames}
+                    trimRange={trimRange}
+                  />
+                )}
               </div>
               <FrameGallery
                 frames={frames}
