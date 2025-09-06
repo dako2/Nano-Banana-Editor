@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import type { Frame } from '../types';
+import { formatTime } from '../utils/formatTime';
 
 interface VideoPreviewProps {
   videoUrl: string;
@@ -32,12 +33,6 @@ const FullscreenExitIcon: React.FC = () => (
   </svg>
 );
 
-const formatTime = (timeInSeconds: number) => {
-    const time = Math.max(0, timeInSeconds);
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
-    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-};
 
 export const VideoPreview: React.FC<VideoPreviewProps> = ({ videoUrl, editedFrames, trimRange }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -46,18 +41,21 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ videoUrl, editedFram
   const animationFrameId = useRef<number | null>(null);
   const preloadedImages = useRef<Map<number, HTMLImageElement>>(new Map());
 
+  // Component state for controls
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(trimRange?.start ?? 0);
   const [videoDuration, setVideoDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
+  // Derive trim values from props, with safe fallbacks
   const trimStart = trimRange?.start ?? 0;
-  const trimEnd = trimRange?.end ?? videoDuration;
-  const clipDuration = trimEnd - trimStart;
-  
-  // Pre-load edited frame images for faster rendering.
+  const effectiveTrimEnd = trimRange?.end ?? videoDuration;
+  const clipDuration = Math.max(0, effectiveTrimEnd - trimStart);
+
+  // Pre-load edited frame images into HTMLImageElement for faster rendering on canvas.
   useEffect(() => {
     editedFrames.forEach((frame, index) => {
       if (preloadedImages.current.get(index)?.src !== frame.data) {
@@ -68,15 +66,15 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ videoUrl, editedFram
     });
   }, [editedFrames]);
 
-  // Main rendering loop for the canvas overlay
+  // Main rendering loop for drawing edited frames onto the canvas overlay.
   const renderLoop = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!video || !canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!video || !canvas?.getContext('2d')) return;
+    const ctx = canvas.getContext('2d')!;
     
-    const currentFrameIndex = Math.floor((video.currentTime - trimStart) * 1);
+    // Calculate which frame to show based on playback time relative to the clip's start.
+    const currentFrameIndex = Math.floor((video.currentTime - trimStart) * 1); // Assuming 1 FPS for now
     const editedFrameImage = preloadedImages.current.get(currentFrameIndex);
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -86,61 +84,86 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ videoUrl, editedFram
     animationFrameId.current = requestAnimationFrame(renderLoop);
   }, [trimStart]);
   
-  // Setup video event listeners to sync state with custom controls
+  // Effect to initialize the video when the source URL or trim range changes.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    setIsReady(false); // Mark as not ready until metadata is loaded for the new source
+
+    const handleLoadedMetadata = () => {
+      setVideoDuration(video.duration);
+      // Set the initial currentTime to the start of the clip.
+      video.currentTime = trimStart;
+      setCurrentTime(trimStart);
+      
+      canvasRef.current!.width = video.videoWidth;
+      canvasRef.current!.height = video.videoHeight;
+      setIsReady(true); // Video is now ready for interaction
+    };
+
+    video.addEventListener('loadedmetadata', handleLoadedMetadata);
+
+    // If the src attribute is the same, the browser might not reload it. Force a load.
+    if(video.currentSrc === videoUrl && video.readyState === 0) {
+      video.load();
+    }
+    
+    return () => {
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+    };
+  }, [videoUrl, trimStart]);
+
+  // Effect to manage continuous playback controls (play, pause, timeupdate).
   useEffect(() => {
       const video = videoRef.current;
       if (!video) return;
 
       const handleTimeUpdate = () => {
-          if (video.currentTime >= trimEnd) {
+          // If playback goes past the clip end, pause and snap to the end.
+          if (video.currentTime >= effectiveTrimEnd) {
               video.pause();
-              setCurrentTime(trimEnd);
-          } else {
-              setCurrentTime(video.currentTime);
-          }
-      };
-      const handleLoadedData = () => {
-          setVideoDuration(video.duration);
-          if (video.currentTime < trimStart) {
-              video.currentTime = trimStart;
+              video.currentTime = effectiveTrimEnd;
           }
           setCurrentTime(video.currentTime);
-          canvasRef.current!.width = video.videoWidth;
-          canvasRef.current!.height = video.videoHeight;
       };
+      
       const handlePlay = () => {
+        // If something caused playback to start before the clip, jump to the start.
+        if (video.currentTime < trimStart) {
+            video.currentTime = trimStart;
+        }
         setIsPlaying(true);
         animationFrameId.current = requestAnimationFrame(renderLoop);
       };
+      
       const handlePause = () => {
         setIsPlaying(false);
         if(animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
       };
+      
       const handleVolumeChange = () => {
           setVolume(video.volume);
           setIsMuted(video.muted);
       };
       
       video.addEventListener('timeupdate', handleTimeUpdate);
-      video.addEventListener('loadeddata', handleLoadedData);
       video.addEventListener('play', handlePlay);
       video.addEventListener('pause', handlePause);
       video.addEventListener('volumechange', handleVolumeChange);
       
-      handleVolumeChange();
-      if (video.readyState >= 2) handleLoadedData();
+      handleVolumeChange(); // Initial sync
 
       return () => {
           video.removeEventListener('timeupdate', handleTimeUpdate);
-          video.removeEventListener('loadeddata', handleLoadedData);
           video.removeEventListener('play', handlePlay);
           video.removeEventListener('pause', handlePause);
           video.removeEventListener('volumechange', handleVolumeChange);
           if(animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
       };
-  }, [trimStart, trimEnd, renderLoop]);
+  }, [trimStart, effectiveTrimEnd, renderLoop]);
   
-  // Fullscreen management
+  // Effect to handle fullscreen state changes.
   useEffect(() => {
     const onFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', onFullscreenChange);
@@ -150,23 +173,22 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ videoUrl, editedFram
   // --- Control Handlers ---
   const handlePlayPauseToggle = useCallback(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !isReady) return;
     if (video.paused) {
-        if(video.currentTime >= trimEnd) {
+        if(video.currentTime >= effectiveTrimEnd) {
             video.currentTime = trimStart;
         }
         video.play();
     } else {
         video.pause();
     }
-  }, [trimStart, trimEnd]);
+  }, [trimStart, effectiveTrimEnd, isReady]);
   
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const video = videoRef.current;
-    if (!video) return;
-    const newTime = parseFloat(e.target.value);
-    video.currentTime = newTime;
-    setCurrentTime(newTime);
+    if (!video || !isReady) return;
+    video.currentTime = parseFloat(e.target.value);
+    setCurrentTime(video.currentTime);
   };
   
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -208,11 +230,11 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ videoUrl, editedFram
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
 
       {/* Custom Controls */}
-      <div className="absolute bottom-0 left-0 right-0 p-2 sm:p-3 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-1">
+      <div className={`absolute bottom-0 left-0 right-0 p-2 sm:p-3 text-white transition-opacity duration-300 flex flex-col gap-1 ${isReady ? 'opacity-0 group-hover:opacity-100' : 'opacity-0'}`}>
         <input
             type="range"
             min={trimStart}
-            max={trimEnd}
+            max={effectiveTrimEnd}
             step="any"
             value={currentTime}
             onChange={handleSeek}
@@ -232,12 +254,21 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ videoUrl, editedFram
             </div>
         </div>
       </div>
+       {!isReady && (
+        <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none">
+            <div className="w-8 h-8 border-2 border-t-brand-pink rounded-full animate-spin"></div>
+        </div>
+      )}
       <style>{`
         .range-slider::-webkit-slider-thumb {
           -webkit-appearance: none; appearance: none;
           width: 14px; height: 14px;
           background-color: #db2777;
           border-radius: 50%; cursor: pointer;
+          transition: background-color 0.2s;
+        }
+        .range-slider:hover::-webkit-slider-thumb {
+            background-color: #f472b6;
         }
         .range-slider::-moz-range-thumb {
           width: 14px; height: 14px;

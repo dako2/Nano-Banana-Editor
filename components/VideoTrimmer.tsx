@@ -1,12 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-
-// Helper to format seconds to MM:SS
-const formatTime = (time: number) => {
-  if (isNaN(time)) return '00:00';
-  const minutes = Math.floor(time / 60);
-  const seconds = Math.floor(time % 60);
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-};
+import React from 'react';
+import { useVideoTrimmer } from '../hooks/useVideoTrimmer';
+import { RangeSlider } from './RangeSlider';
+import { formatTime } from '../utils/formatTime';
 
 interface VideoTrimmerProps {
   file: File;
@@ -15,44 +10,16 @@ interface VideoTrimmerProps {
 }
 
 export const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ file, onConfirm, onCancel }) => {
-  const [videoUrl, setVideoUrl] = useState('');
-  const [duration, setDuration] = useState(0);
-  const [startTime, setStartTime] = useState(0);
-  const [endTime, setEndTime] = useState(0);
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    const url = URL.createObjectURL(file);
-    setVideoUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
-
-  const handleMetadataLoaded = () => {
-    if (videoRef.current) {
-      const videoDuration = videoRef.current.duration;
-      setDuration(videoDuration);
-      setEndTime(videoDuration);
-    }
-  };
-
-  const handleStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newStart = parseFloat(e.target.value);
-    if (newStart < endTime) {
-      setStartTime(newStart);
-      if (videoRef.current) videoRef.current.currentTime = newStart;
-    }
-  };
-
-  const handleEndTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newEnd = parseFloat(e.target.value);
-    if (newEnd > startTime) {
-      setEndTime(newEnd);
-      if (videoRef.current) videoRef.current.currentTime = newEnd;
-    }
-  };
-  
-  const progressPercent = (duration > 0) ? (endTime - startTime) / duration * 100 : 0;
-  const startPercent = (duration > 0) ? (startTime / duration) * 100 : 0;
+  const {
+    videoRef,
+    videoUrl,
+    duration,
+    startTime,
+    endTime,
+    handleMetadataLoaded,
+    handleTimeChange,
+    seekTo,
+  } = useVideoTrimmer(file);
 
   return (
     <div className="w-full max-w-4xl bg-dark-surface rounded-lg shadow-lg p-6 border border-dark-border animate-fadeIn flex flex-col items-center">
@@ -71,72 +38,16 @@ export const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ file, onConfirm, onC
         )}
       </div>
 
-      <div className="w-full px-2">
-        <div className="relative h-12 flex items-center">
-            <div className="absolute w-full h-2 bg-gray-600 rounded-full"></div>
-            <div 
-                className="absolute h-2 bg-brand-pink rounded-full"
-                style={{
-                    left: `${startPercent}%`,
-                    width: `${progressPercent}%`,
-                }}
-            ></div>
-            <input
-                type="range"
-                min={0}
-                max={duration}
-                step={0.1}
-                value={startTime}
-                onChange={handleStartTimeChange}
-                className="absolute w-full h-2 appearance-none bg-transparent pointer-events-auto range-thumb"
-                aria-label="Start Time"
-            />
-            <input
-                type="range"
-                min={0}
-                max={duration}
-                step={0.1}
-                value={endTime}
-                onChange={handleEndTimeChange}
-                className="absolute w-full h-2 appearance-none bg-transparent pointer-events-auto range-thumb"
-                aria-label="End Time"
-            />
-        </div>
-
-        <div className="flex justify-between text-sm font-mono mt-2 text-gray-300">
-            <span>Start: <span className="text-brand-teal">{formatTime(startTime)}</span></span>
-            <span>End: <span className="text-brand-teal">{formatTime(endTime)}</span></span>
-        </div>
-      </div>
+      <RangeSlider
+        min={0}
+        max={duration}
+        step={0.1}
+        startTime={startTime}
+        endTime={endTime}
+        onTimeChange={handleTimeChange}
+        onSeek={seekTo}
+      />
         
-      <style>{`
-        .range-thumb::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          appearance: none;
-          width: 24px;
-          height: 24px;
-          background-color: #db2777;
-          border: 2px solid white;
-          border-radius: 50%;
-          cursor: pointer;
-          margin-top: -10px;
-          pointer-events: all;
-          position: relative;
-          z-index: 10;
-        }
-        .range-thumb::-moz-range-thumb {
-          width: 20px;
-          height: 20px;
-          background-color: #db2777;
-          border: 2px solid white;
-          border-radius: 50%;
-          cursor: pointer;
-          pointer-events: all;
-          position: relative;
-          z-index: 10;
-        }
-      `}</style>
-
       <div className="flex flex-col sm:flex-row gap-4 mt-8 w-full sm:w-auto">
         <button
           onClick={onCancel}
