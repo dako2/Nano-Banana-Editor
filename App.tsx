@@ -9,6 +9,7 @@ import type { Frame, AISuggestion } from './types';
 import { VideoTrimmer } from './components/VideoTrimming/VideoTrimmer';
 import { VideoPreview } from './components/VideoPreview';
 import { VideoProvider, useVideo } from './contexts/VideoContext';
+import { calculatePixelSimilarity } from './utils/imageSimilarity';
 
 const AppContent: React.FC = () => {
   const [selectedFileForTrimming, setSelectedFileForTrimming] = useState<File | null>(null);
@@ -101,7 +102,26 @@ const AppContent: React.FC = () => {
     try {
         const editedFrameData = await editFrame(currentFrame, prompt, previousFrame, nextFrame);
         
+        // Update the primary edited frame
         updateEditedFrame(selectedFrameIndex, { ...currentFrame, data: editedFrameData });
+        
+        // Propagate the edit to subsequent similar frames
+        setLoadingMessage('Applying edit to similar frames...');
+        const SIMILARITY_THRESHOLD = 0.95; // 95% similarity
+
+        for (let i = selectedFrameIndex + 1; i < frames.length; i++) {
+            const nextOriginalFrame = frames[i];
+            // eslint-disable-next-line no-await-in-loop
+            const similarity = await calculatePixelSimilarity(currentFrame.data, nextOriginalFrame.data);
+
+            if (similarity >= SIMILARITY_THRESHOLD) {
+                // This frame is similar enough, apply the same edit to it.
+                updateEditedFrame(i, { ...nextOriginalFrame, data: editedFrameData });
+            } else {
+                // The scene has changed, stop propagating.
+                break;
+            }
+        }
 
     } catch (error) {
         console.error("Error editing frame:", error);
