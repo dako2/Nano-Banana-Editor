@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:doppler": "doppler run -- vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "build:doppler": "doppler run -- vite build",
+    "preview": "vite preview",
+    "setup:doppler": "./scripts/setup-doppler.sh"
   },
   "dependencies": {
     "react": "^19.1.1",
