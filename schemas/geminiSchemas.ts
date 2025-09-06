@@ -6,8 +6,8 @@ export const suggestionSchema = {
       type: Type.OBJECT,
       properties: {
         frameIndex: {
-          type: Type.INTEGER,
-          description: 'The index of the frame in the provided array that this suggestion applies to.',
+          type: Type.NUMBER,
+          description: 'The time in seconds, relative to the start of the clip, where the suggestion applies. Can be a float.',
         },
         suggestion: {
           type: Type.STRING,

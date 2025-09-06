@@ -73,7 +73,7 @@ export const AIControlPanel: React.FC<AIControlPanelProps> = ({ onAnalyze, onEdi
                     <ul className="space-y-3">
                         {suggestions.map((s, i) => (
                             <li key={i} className="p-3 bg-gray-900/50 border-l-4 border-brand-teal rounded-r-md text-sm">
-                                <span className="font-bold text-gray-300">Frame {s.frameIndex + 1}:</span>
+                                <span className="font-bold text-gray-300">Time {s.frameIndex.toFixed(1)}s:</span>
                                 <p className="text-gray-400">{s.suggestion}</p>
                             </li>
                         ))}

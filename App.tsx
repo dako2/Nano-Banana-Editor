@@ -4,7 +4,7 @@ import { FrameGallery } from './components/FrameGallery';
 import { AIControlPanel } from './components/AIControlPanel';
 import { Header } from './components/Header';
 import { LoadingOverlay } from './components/LoadingOverlay';
-import { analyzeVideoFrames, editFrame } from './services/geminiService';
+import { analyzeVideoFile, editFrame } from './services/geminiService';
 import type { Frame, AISuggestion } from './types';
 import { VideoTrimmer } from './components/VideoTrimming/VideoTrimmer';
 import { VideoPreview } from './components/VideoPreview';
@@ -12,6 +12,7 @@ import { VideoProvider, useVideo } from './contexts/VideoContext';
 
 const AppContent: React.FC = () => {
   const [selectedFileForTrimming, setSelectedFileForTrimming] = useState<File | null>(null);
+  const [trimmedVideoFile, setTrimmedVideoFile] = useState<File | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>([]);
   const [selectedFrameIndex, setSelectedFrameIndex] = useState<number | null>(null);
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
@@ -24,7 +25,8 @@ const AppContent: React.FC = () => {
     loadAndProcessVideo,
     updateEditedFrame,
     clearVideoData,
-    editedFrames
+    editedFrames,
+    trimRange,
   } = useVideo();
 
   useEffect(() => {
@@ -41,13 +43,15 @@ const AppContent: React.FC = () => {
     setSelectedFrameIndex(null);
     setErrorMessage(null);
     setSelectedFileForTrimming(file);
+    setTrimmedVideoFile(null);
   }, [clearVideoData]);
 
   const handleTrimConfirm = useCallback(async (file: File, startTime: number, endTime: number) => {
     setSelectedFileForTrimming(null);
     setAiSuggestions([]);
     setSelectedFrameIndex(null);
-    await loadAndProcessVideo(file, 1, { startTime, endTime });
+    setTrimmedVideoFile(file); // Keep the (potentially trimmed) file for upload
+    await loadAndProcessVideo(file, 10, { startTime, endTime }); // High frame rate for smooth preview
   }, [loadAndProcessVideo]);
 
   const handleTrimCancel = useCallback(() => {
@@ -55,15 +59,19 @@ const AppContent: React.FC = () => {
   }, []);
 
   const handleAnalyzeVideo = useCallback(async () => {
-    if (frames.length === 0) {
-      setErrorMessage("No frames to analyze. Please upload a video first.");
+    if (!trimmedVideoFile) {
+      setErrorMessage("No video file available to analyze.");
       return;
     }
-    setLoadingMessage('Analyzing video with Gemini...');
+    if (!trimRange) { // Defensive check
+      setErrorMessage("Video trim range is not set. Please re-process the video.");
+      return;
+    }
+    setLoadingMessage('Uploading and analyzing video with Gemini...');
     setErrorMessage(null);
     try {
-      // Send all frames to give the model full context.
-      const suggestions = await analyzeVideoFrames(frames.map(f => f.data));
+      // Send the actual video file for analysis, but specify the time range.
+      const suggestions = await analyzeVideoFile(trimmedVideoFile, trimRange.start, trimRange.end);
       setAiSuggestions(suggestions);
     } catch (error) {
       console.error("Error analyzing video:", error);
@@ -71,7 +79,7 @@ const AppContent: React.FC = () => {
     } finally {
       setLoadingMessage(null);
     }
-  }, [frames]);
+  }, [trimmedVideoFile, trimRange]);
 
   const handleEditFrame = useCallback(async (prompt: string) => {
     if (selectedFrameIndex === null) {

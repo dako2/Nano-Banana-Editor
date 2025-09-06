@@ -30,7 +30,7 @@ const FullscreenExitIcon: React.FC = () => (
 
 
 export const VideoPreview: React.FC = () => {
-  const { videoUrl, editedFrames, trimRange, videoDimensions } = useVideo();
+  const { videoUrl, editedFrames, trimRange, videoDimensions, framesPerSecond } = useVideo();
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -69,7 +69,7 @@ export const VideoPreview: React.FC = () => {
     if (!video || !canvas?.getContext('2d')) return;
     const ctx = canvas.getContext('2d')!;
     
-    const currentFrameIndex = Math.floor((video.currentTime - trimStart) * 1); // Assuming 1 FPS for now
+    const currentFrameIndex = Math.floor((video.currentTime - trimStart) * framesPerSecond);
     const editedFrameImage = preloadedImages.current.get(currentFrameIndex);
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -101,7 +101,7 @@ export const VideoPreview: React.FC = () => {
       ctx.drawImage(editedFrameImage, offsetX, offsetY, drawWidth, drawHeight);
     }
     animationFrameId.current = requestAnimationFrame(renderLoop);
-  }, [trimStart]);
+  }, [trimStart, framesPerSecond]);
   
   // Effect to initialize the video when the source URL or trim range changes.
   useEffect(() => {

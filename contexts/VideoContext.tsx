@@ -13,6 +13,7 @@ interface VideoContextType {
   trimRange: { start: number; end: number } | null;
   editedFrames: Map<number, Frame>;
   isProcessing: boolean;
+  framesPerSecond: number;
   loadAndProcessVideo: (videoFile: File, framesPerSecond: number, trim?: { startTime: number; endTime: number }) => Promise<void>;
   updateEditedFrame: (index: number, frame: Frame) => void;
   clearVideoData: () => void;
@@ -27,6 +28,7 @@ export const VideoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [videoDimensions, setVideoDimensions] = useState<VideoDimensions | null>(null);
   const [trimRange, setTrimRange] = useState<{ start: number, end: number } | null>(null);
   const [editedFrames, setEditedFrames] = useState<Map<number, Frame>>(new Map());
+  const [framesPerSecond, setFramesPerSecond] = useState(1);
 
   const clearVideoData = useCallback(() => {
     if (videoUrl) {
@@ -38,11 +40,13 @@ export const VideoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setTrimRange(null);
     setEditedFrames(new Map());
     setIsProcessing(false);
+    setFramesPerSecond(1);
   }, [videoUrl]);
   
-  const loadAndProcessVideo = useCallback(async (videoFile: File, framesPerSecond: number, trim?: { startTime: number; endTime: number }) => {
+  const loadAndProcessVideo = useCallback(async (videoFile: File, fps: number, trim?: { startTime: number; endTime: number }) => {
     clearVideoData(); 
     setIsProcessing(true);
+    setFramesPerSecond(fps);
 
     const url = URL.createObjectURL(videoFile);
     setVideoUrl(url);
@@ -65,7 +69,7 @@ export const VideoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             
             const duration = video.duration;
             const capturedFrames: Frame[] = [];
-            const interval = 1 / framesPerSecond;
+            const interval = 1 / fps;
 
             const startTime = trim?.startTime ?? 0;
             const endTime = trim?.endTime ?? duration;
@@ -125,6 +129,7 @@ export const VideoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     trimRange,
     editedFrames,
     isProcessing,
+    framesPerSecond,
     loadAndProcessVideo,
     updateEditedFrame,
     clearVideoData,
