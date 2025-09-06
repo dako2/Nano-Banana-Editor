@@ -2,7 +2,7 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { useGoogleDrivePicker } from '../hooks/useGoogleDrivePicker';
 
 interface FileUploadProps {
-  onVideoUpload: (file: File) => void;
+  onFileSelect: (file: File) => void;
   setErrorMessage: (message: string | null) => void;
 }
 
@@ -21,9 +21,9 @@ const GoogleDriveIcon: React.FC = () => (
 );
 
 
-export const FileUpload: React.FC<FileUploadProps> = ({ onVideoUpload, setErrorMessage }) => {
+export const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, setErrorMessage }) => {
   const [isDragging, setIsDragging] = useState(false);
-  const { openPicker, error: pickerError, isReady, isConfigured } = useGoogleDrivePicker({ onVideoSelect: onVideoUpload });
+  const { openPicker, error: pickerError, isReady, isConfigured } = useGoogleDrivePicker({ onVideoSelect: onFileSelect });
 
   useEffect(() => {
     if (pickerError) {
@@ -34,7 +34,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onVideoUpload, setErrorM
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      onVideoUpload(file);
+      onFileSelect(file);
     }
   };
 
@@ -44,9 +44,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onVideoUpload, setErrorM
     setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
     if (file && file.type.startsWith('video/')) {
-      onVideoUpload(file);
+      onFileSelect(file);
     }
-  }, [onVideoUpload]);
+  }, [onFileSelect]);
 
   const handleDragOver = useCallback((e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault();

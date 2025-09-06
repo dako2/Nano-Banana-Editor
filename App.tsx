@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { FrameGallery } from './components/FrameGallery';
@@ -8,8 +7,10 @@ import { LoadingOverlay } from './components/LoadingOverlay';
 import { useVideoProcessor } from './hooks/useVideoProcessor';
 import { analyzeVideoFrames, editFrame } from './services/geminiService';
 import type { Frame, AISuggestion } from './types';
+import { VideoTrimmer } from './components/VideoTrimmer';
 
 const App: React.FC = () => {
+  const [selectedFileForTrimming, setSelectedFileForTrimming] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [editedFrames, setEditedFrames] = useState<Map<number, Frame>>(new Map());
@@ -28,16 +29,27 @@ const App: React.FC = () => {
     }
   }, [isExtractingFrames, loadingMessage]);
 
-  const handleVideoUpload = useCallback(async (file: File) => {
-    setVideoFile(file);
-    const url = URL.createObjectURL(file);
-    setVideoUrl(url);
+  const handleFileSelect = useCallback((file: File) => {
+    setVideoFile(null);
+    setVideoUrl('');
     setEditedFrames(new Map());
     setAiSuggestions([]);
     setSelectedFrameIndex(null);
     setErrorMessage(null);
-    await processVideo(file, 1); // Extract 1 frame per second
+    setSelectedFileForTrimming(file);
+  }, []);
+
+  const handleTrimConfirm = useCallback(async (file: File, startTime: number, endTime: number) => {
+    setSelectedFileForTrimming(null);
+    setVideoFile(file);
+    const url = URL.createObjectURL(file);
+    setVideoUrl(url);
+    await processVideo(file, 1, { startTime, endTime });
   }, [processVideo]);
+
+  const handleTrimCancel = useCallback(() => {
+    setSelectedFileForTrimming(null);
+  }, []);
 
   const handleAnalyzeVideo = useCallback(async () => {
     if (frames.length === 0) {
@@ -97,8 +109,14 @@ const App: React.FC = () => {
       <Header />
       {isLoading && <LoadingOverlay message={loadingMessage} />}
       <main className="flex-grow p-4 md:p-8 flex flex-col items-center justify-center">
-        {!videoFile ? (
-          <FileUpload onVideoUpload={handleVideoUpload} setErrorMessage={setErrorMessage} />
+        {selectedFileForTrimming ? (
+          <VideoTrimmer 
+            file={selectedFileForTrimming} 
+            onConfirm={handleTrimConfirm}
+            onCancel={handleTrimCancel}
+          />
+        ) : !videoFile ? (
+          <FileUpload onFileSelect={handleFileSelect} setErrorMessage={setErrorMessage} />
         ) : (
           <div className="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
             {/* Left/Top Section: Video Player & Frame Gallery */}

@@ -1,12 +1,16 @@
-
 import { useState, useCallback } from 'react';
 import type { Frame } from '../types';
+
+interface TrimOptions {
+  startTime: number;
+  endTime: number;
+}
 
 export const useVideoProcessor = () => {
   const [frames, setFrames] = useState<Frame[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const processVideo = useCallback(async (videoFile: File, framesPerSecond: number) => {
+  const processVideo = useCallback(async (videoFile: File, framesPerSecond: number, trim?: TrimOptions) => {
     setIsProcessing(true);
     setFrames([]);
 
@@ -25,7 +29,10 @@ export const useVideoProcessor = () => {
       const capturedFrames: Frame[] = [];
       const interval = 1 / framesPerSecond;
 
-      for (let time = 0; time < duration; time += interval) {
+      const startTime = trim?.startTime ?? 0;
+      const endTime = trim?.endTime ?? duration;
+
+      for (let time = startTime; time < endTime; time += interval) {
         video.currentTime = time;
         // eslint-disable-next-line no-await-in-loop
         await new Promise(resolve => {
