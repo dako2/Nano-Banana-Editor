@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import type { AISuggestion, Frame } from '../types';
+import type { AISuggestion, Frame, ClipSuggestion } from '../types';
 import { useVideo } from '../contexts/VideoContext';
 
 interface AIControlPanelProps {
   onAnalyze: () => void;
   onEdit: (prompt: string) => void;
   onBatchEdit: (prompt: string, frameIndices: number[]) => void;
+  onAnalyzeClips: () => void;
+  onUseClip?: (startTime: number, endTime: number) => void;
   suggestions: AISuggestion[];
+  clipSuggestion: ClipSuggestion | null;
   selectedFrame: Frame | null;
   selectedFrameIndices: number[];
 }
@@ -71,8 +74,95 @@ const EditSection: React.FC<{
     );
 };
 
+const ClipAnalysisSection: React.FC<{ 
+    clipSuggestion: ClipSuggestion | null; 
+    onAnalyzeClips: () => void; 
+    onUseClip?: (startTime: number, endTime: number) => void 
+}> = ({ clipSuggestion, onAnalyzeClips, onUseClip }) => {
+    const [hasAnalyzedClips, setHasAnalyzedClips] = useState(false);
+    const { frames } = useVideo();
+    const hasFrames = frames.length > 0;
 
-export const AIControlPanel: React.FC<AIControlPanelProps> = ({ onAnalyze, onEdit, onBatchEdit, suggestions, selectedFrame, selectedFrameIndices }) => {
+    const handleAnalyzeClipsClick = () => {
+        onAnalyzeClips();
+        setHasAnalyzedClips(true);
+    };
+
+    const getViralPotentialColor = (potential: string) => {
+        switch (potential) {
+            case 'high': return 'text-green-400';
+            case 'medium': return 'text-yellow-400';
+            case 'low': return 'text-red-400';
+            default: return 'text-gray-400';
+        }
+    };
+
+    return (
+        <div className="mt-6 p-4 border border-dark-border rounded-lg bg-gray-900/50">
+            <h3 className="text-lg font-display text-brand-pink mb-3">7-Second Viral Clips</h3>
+            
+            <button
+                onClick={handleAnalyzeClipsClick}
+                disabled={!hasFrames || hasAnalyzedClips}
+                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-2 px-4 rounded-md hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-bg focus:ring-brand-pink transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed"
+            >
+                {hasAnalyzedClips ? 'Clip Analysis Complete' : 'Find 7-Second Viral Clip'}
+            </button>
+
+            {clipSuggestion && (
+                <div className="mt-4 space-y-3">
+                    <div className="p-3 bg-gray-800/50 rounded-md">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="font-bold text-gray-300">Viral Potential:</span>
+                            <span className={`font-bold ${getViralPotentialColor(clipSuggestion.viralPotential)}`}>
+                                {clipSuggestion.viralPotential.toUpperCase()}
+                            </span>
+                        </div>
+                        <div className="text-sm text-gray-400 mb-2">
+                            <span className="font-semibold">Duration:</span> {clipSuggestion.duration.toFixed(1)}s
+                        </div>
+                        <div className="text-sm text-gray-400 mb-2">
+                            <span className="font-semibold">Time Range:</span> {clipSuggestion.startTime.toFixed(1)}s - {clipSuggestion.endTime.toFixed(1)}s
+                        </div>
+                        <p className="text-sm text-gray-300 mb-3">{clipSuggestion.reason}</p>
+                        
+                        <div className="space-y-2">
+                            <h4 className="font-semibold text-gray-300 text-sm">Editing Suggestions:</h4>
+                            <ul className="space-y-1">
+                                {clipSuggestion.editingSuggestions.map((suggestion, index) => (
+                                    <li key={index} className="text-xs text-gray-400 bg-gray-700/30 p-2 rounded">
+                                        • {suggestion}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                        
+                        {onUseClip && (
+                            <button
+                                onClick={() => onUseClip(clipSuggestion.startTime, clipSuggestion.endTime)}
+                                className="w-full mt-3 bg-gradient-to-r from-green-600 to-teal-600 text-white font-bold py-2 px-4 rounded-md hover:from-green-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-bg focus:ring-green-500 transition-colors"
+                            >
+                                Use This 7-Second Clip
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export const AIControlPanel: React.FC<AIControlPanelProps> = ({ 
+    onAnalyze, 
+    onEdit, 
+    onBatchEdit,
+    onAnalyzeClips, 
+    onUseClip, 
+    suggestions, 
+    clipSuggestion, 
+    selectedFrame,
+    selectedFrameIndices 
+}) => {
     const [hasAnalyzed, setHasAnalyzed] = useState(false);
     const { frames } = useVideo();
     const hasFrames = frames.length > 0;
@@ -112,6 +202,11 @@ export const AIControlPanel: React.FC<AIControlPanelProps> = ({ onAnalyze, onEdi
                 )}
             </div>
 
+            <ClipAnalysisSection 
+                clipSuggestion={clipSuggestion} 
+                onAnalyzeClips={onAnalyzeClips} 
+                onUseClip={onUseClip} 
+            />
             <EditSection 
                 selectedFrame={selectedFrame} 
                 selectedFrameIndices={selectedFrameIndices}

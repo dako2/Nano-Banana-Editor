@@ -4,8 +4,8 @@ import { FrameGallery } from './components/FrameGallery';
 import { AIControlPanel } from './components/AIControlPanel';
 import { Header } from './components/Header';
 import { LoadingOverlay } from './components/LoadingOverlay';
-import { analyzeVideoFile, editFrame } from './services/geminiService';
-import type { Frame, AISuggestion } from './types';
+import { analyzeVideoFile, analyzeVideoForClips, editFrame } from './services/geminiService';
+import type { Frame, AISuggestion, ClipSuggestion } from './types';
 import { VideoTrimmer } from './components/VideoTrimming/VideoTrimmer';
 import { VideoPreview } from './components/VideoPreview';
 import { VideoProvider, useVideo } from './contexts/VideoContext';
@@ -14,7 +14,9 @@ import { calculatePixelSimilarity } from './utils/imageSimilarity';
 const AppContent: React.FC = () => {
   const [selectedFileForTrimming, setSelectedFileForTrimming] = useState<File | null>(null);
   const [trimmedVideoFile, setTrimmedVideoFile] = useState<File | null>(null);
+  const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>([]);
+  const [clipSuggestion, setClipSuggestion] = useState<ClipSuggestion | null>(null);
   const [selectedFrameIndex, setSelectedFrameIndex] = useState<number | null>(null);
   const [selectedFrameIndices, setSelectedFrameIndices] = useState<number[]>([]);
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
@@ -42,9 +44,11 @@ const AppContent: React.FC = () => {
   const handleFileSelect = useCallback((file: File) => {
     clearVideoData();
     setAiSuggestions([]);
+    setClipSuggestion(null);
     setSelectedFrameIndex(null);
     setSelectedFrameIndices([]);
     setErrorMessage(null);
+    setOriginalFile(file);
     setSelectedFileForTrimming(file);
     setTrimmedVideoFile(null);
   }, [clearVideoData]);
@@ -52,6 +56,7 @@ const AppContent: React.FC = () => {
   const handleTrimConfirm = useCallback(async (file: File, startTime: number, endTime: number) => {
     setSelectedFileForTrimming(null);
     setAiSuggestions([]);
+    setClipSuggestion(null);
     setSelectedFrameIndex(null);
     setSelectedFrameIndices([]);
     setTrimmedVideoFile(file); // Keep the (potentially trimmed) file for upload
@@ -84,6 +89,56 @@ const AppContent: React.FC = () => {
       setLoadingMessage(null);
     }
   }, [trimmedVideoFile, trimRange]);
+
+  const handleAnalyzeClips = useCallback(async () => {
+    if (!trimmedVideoFile) {
+      setErrorMessage("No video file available to analyze for clips.");
+      return;
+    }
+    if (!trimRange) {
+      setErrorMessage("Video trim range is not set. Please re-process the video.");
+      return;
+    }
+    setLoadingMessage('Finding 7-second viral clip...');
+    setErrorMessage(null);
+    try {
+      const clipSuggestion = await analyzeVideoForClips(trimmedVideoFile, trimRange.start, trimRange.end);
+      setClipSuggestion(clipSuggestion);
+    } catch (error) {
+      console.error("Error analyzing clips:", error);
+      setErrorMessage("Failed to analyze clips. Please check the console for details.");
+    } finally {
+      setLoadingMessage(null);
+    }
+  }, [trimmedVideoFile, trimRange]);
+
+  const handleUseClip = useCallback(async (startTime: number, endTime: number) => {
+    if (!originalFile) {
+      setErrorMessage("No original video file available to trim.");
+      return;
+    }
+    
+    // Calculate absolute time range based on current trim range
+    const absoluteStartTime = (trimRange?.start || 0) + startTime;
+    const absoluteEndTime = (trimRange?.start || 0) + endTime;
+    
+    setLoadingMessage('Trimming video to 7-second clip...');
+    setErrorMessage(null);
+    
+    try {
+      // Clear current data and re-process with the new trim range
+      setAiSuggestions([]);
+      setClipSuggestion(null);
+      setSelectedFrameIndex(null);
+      setTrimmedVideoFile(originalFile);
+      await loadAndProcessVideo(originalFile, 10, { startTime: absoluteStartTime, endTime: absoluteEndTime });
+    } catch (error) {
+      console.error("Error trimming video:", error);
+      setErrorMessage("Failed to trim video. Please try again.");
+    } finally {
+      setLoadingMessage(null);
+    }
+  }, [originalFile, loadAndProcessVideo, trimRange]);
 
   const handleEditFrame = useCallback(async (prompt: string) => {
     if (selectedFrameIndex === null) {
@@ -231,7 +286,10 @@ const AppContent: React.FC = () => {
                 onAnalyze={handleAnalyzeVideo}
                 onEdit={handleEditFrame}
                 onBatchEdit={handleBatchEdit}
+                onAnalyzeClips={handleAnalyzeClips}
+                onUseClip={handleUseClip}
                 suggestions={aiSuggestions}
+                clipSuggestion={clipSuggestion}
                 selectedFrame={selectedFrameIndex !== null ? frames[selectedFrameIndex] : null}
                 selectedFrameIndices={selectedFrameIndices}
               />

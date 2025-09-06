@@ -17,3 +17,38 @@ export const suggestionSchema = {
       required: ['frameIndex', 'suggestion'],
     },
 };
+
+export const clipSuggestionSchema = {
+    type: Type.OBJECT,
+    properties: {
+      startTime: {
+        type: Type.NUMBER,
+        description: 'The starting time in seconds for the 7-second clip (relative to the analyzed video segment).',
+      },
+      endTime: {
+        type: Type.NUMBER,
+        description: 'The ending time in seconds for the 7-second clip (relative to the analyzed video segment).',
+      },
+      duration: {
+        type: Type.NUMBER,
+        description: 'The duration of the clip in seconds (should be approximately 7 seconds).',
+      },
+      reason: {
+        type: Type.STRING,
+        description: 'Explanation of why this specific 7-second sequence was chosen for viral potential.',
+      },
+      viralPotential: {
+        type: Type.STRING,
+        enum: ['low', 'medium', 'high'],
+        description: 'Assessment of the viral potential of this clip.',
+      },
+      editingSuggestions: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.STRING,
+        },
+        description: 'Specific editing suggestions to enhance the viral potential of this clip.',
+      },
+    },
+    required: ['startTime', 'endTime', 'duration', 'reason', 'viralPotential', 'editingSuggestions'],
+};

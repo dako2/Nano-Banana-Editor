@@ -1,7 +1,7 @@
-import type { AISuggestion, Frame } from '../types';
+import type { AISuggestion, Frame, ClipSuggestion } from '../types';
 import { geminiClient } from './geminiClient';
 import { promptService } from './promptService';
-import { suggestionSchema } from '../schemas/geminiSchemas';
+import { suggestionSchema, clipSuggestionSchema } from '../schemas/geminiSchemas';
 import { base64ToPart, fileToPart } from '../utils/apiUtils';
 
 /**
@@ -17,7 +17,7 @@ import { base64ToPart, fileToPart } from '../utils/apiUtils';
  * @returns A promise that resolves to an array of AISuggestions.
  */
 export const analyzeVideoFile = async (videoFile: File, startTime: number, endTime: number): Promise<AISuggestion[]> => {
-    const prompt = promptService.get('analyzeVideo', {
+    const prompt = await promptService.get('analyzeVideo', {
       startTime: startTime.toFixed(2),
       endTime: endTime.toFixed(2),
     });
@@ -42,6 +42,37 @@ export const analyzeVideoFile = async (videoFile: File, startTime: number, endTi
 }
 
 /**
+ * Analyzes a video file to identify the best 7-second clip for viral content.
+ * @param videoFile The video file to analyze.
+ * @param startTime The start time of the clip to analyze.
+ * @param endTime The end time of the clip to analyze.
+ * @returns A promise that resolves to a ClipSuggestion.
+ */
+export const analyzeVideoForClips = async (videoFile: File, startTime: number, endTime: number): Promise<ClipSuggestion> => {
+    const prompt = await promptService.get('sevenSecondShorts', {
+      startTime: startTime.toFixed(2),
+      endTime: endTime.toFixed(2),
+    });
+    const videoPart = await fileToPart(videoFile);
+
+    const response = await geminiClient.generateJson(
+        "gemini-2.5-flash",
+        prompt,
+        [videoPart],
+        clipSuggestionSchema
+    );
+
+    let jsonText = response.text.trim();
+    const match = jsonText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (match) {
+        jsonText = match[1];
+    }
+
+    const clipSuggestion = JSON.parse(jsonText);
+    return clipSuggestion as ClipSuggestion;
+}
+
+/**
  * Edits a single frame based on a text prompt and surrounding frame context.
  * @param currentFrame The frame to be edited.
  * @param prompt The user's editing instruction.
@@ -58,7 +89,7 @@ export const editFrame = async (
 
     const parts: any[] = [];
     
-    const fullPrompt = promptService.get('editFrame', { prompt });
+    const fullPrompt = await promptService.get('editFrame', { prompt });
     
     // Order of parts is important for context: [previous], current, [next], prompt
     if (previousFrame) {
