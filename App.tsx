@@ -98,7 +98,7 @@ const App: React.FC = () => {
       {isLoading && <LoadingOverlay message={loadingMessage} />}
       <main className="flex-grow p-4 md:p-8 flex flex-col items-center justify-center">
         {!videoFile ? (
-          <FileUpload onVideoUpload={handleVideoUpload} />
+          <FileUpload onVideoUpload={handleVideoUpload} setErrorMessage={setErrorMessage} />
         ) : (
           <div className="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
             {/* Left/Top Section: Video Player & Frame Gallery */}
