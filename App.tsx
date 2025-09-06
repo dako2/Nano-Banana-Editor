@@ -62,9 +62,8 @@ const AppContent: React.FC = () => {
     setLoadingMessage('Analyzing video with Gemini...');
     setErrorMessage(null);
     try {
-      // Send a subset of frames to avoid being too large
-      const framesToAnalyze = frames.filter((_, i) => i % 5 === 0);
-      const suggestions = await analyzeVideoFrames(framesToAnalyze.map(f => f.data));
+      // Send all frames to give the model full context.
+      const suggestions = await analyzeVideoFrames(frames.map(f => f.data));
       setAiSuggestions(suggestions);
     } catch (error) {
       console.error("Error analyzing video:", error);
