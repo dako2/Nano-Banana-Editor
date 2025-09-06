@@ -16,6 +16,7 @@ const AppContent: React.FC = () => {
   const [trimmedVideoFile, setTrimmedVideoFile] = useState<File | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>([]);
   const [selectedFrameIndex, setSelectedFrameIndex] = useState<number | null>(null);
+  const [selectedFrameIndices, setSelectedFrameIndices] = useState<number[]>([]);
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -42,6 +43,7 @@ const AppContent: React.FC = () => {
     clearVideoData();
     setAiSuggestions([]);
     setSelectedFrameIndex(null);
+    setSelectedFrameIndices([]);
     setErrorMessage(null);
     setSelectedFileForTrimming(file);
     setTrimmedVideoFile(null);
@@ -51,6 +53,7 @@ const AppContent: React.FC = () => {
     setSelectedFileForTrimming(null);
     setAiSuggestions([]);
     setSelectedFrameIndex(null);
+    setSelectedFrameIndices([]);
     setTrimmedVideoFile(file); // Keep the (potentially trimmed) file for upload
     await loadAndProcessVideo(file, 10, { startTime, endTime }); // High frame rate for smooth preview
   }, [loadAndProcessVideo]);
@@ -130,6 +133,66 @@ const AppContent: React.FC = () => {
         setLoadingMessage(null);
     }
   }, [selectedFrameIndex, frames, updateEditedFrame]);
+
+  const handleFrameSelect = useCallback((index: number, isShiftClick: boolean = false) => {
+    if (isShiftClick) {
+      // Multi-select with Shift+click
+      setSelectedFrameIndices(prev => {
+        if (prev.includes(index)) {
+          // Remove if already selected
+          return prev.filter(i => i !== index);
+        } else {
+          // Add to selection
+          return [...prev, index];
+        }
+      });
+    } else {
+      // Single select - clear multi-selection
+      setSelectedFrameIndex(index);
+      setSelectedFrameIndices([index]);
+    }
+  }, []);
+
+  const handleBatchEdit = useCallback(async (prompt: string, frameIndices: number[]) => {
+    if (frameIndices.length === 0) {
+      setErrorMessage("No frames selected for batch editing.");
+      return;
+    }
+
+    setLoadingMessage(`Editing ${frameIndices.length} frames with Nano Banana...`);
+    setErrorMessage(null);
+    
+    try {
+      // Process frames in parallel for better performance
+      const editPromises = frameIndices.map(async (frameIndex) => {
+        const currentFrame = frames[frameIndex];
+        if (!currentFrame) return null;
+
+        // Get adjacent frames for context
+        const previousFrame = frameIndex > 0 ? frames[frameIndex - 1] : null;
+        const nextFrame = frameIndex < frames.length - 1 ? frames[frameIndex + 1] : null;
+
+        const editedFrameData = await editFrame(currentFrame, prompt, previousFrame, nextFrame);
+        return { index: frameIndex, data: editedFrameData };
+      });
+
+      const results = await Promise.all(editPromises);
+      
+      // Update all edited frames
+      results.forEach(result => {
+        if (result) {
+          const originalFrame = frames[result.index];
+          updateEditedFrame(result.index, { ...originalFrame, data: result.data });
+        }
+      });
+
+    } catch (error) {
+      console.error("Error batch editing frames:", error);
+      setErrorMessage("Failed to batch edit frames. Please check the console for details.");
+    } finally {
+      setLoadingMessage(null);
+    }
+  }, [frames, updateEditedFrame]);
   
   const isLoading = !!loadingMessage || isProcessing;
   const hasVideo = !!videoUrl;
@@ -157,7 +220,8 @@ const AppContent: React.FC = () => {
               </div>
               <FrameGallery
                 selectedFrameIndex={selectedFrameIndex}
-                onFrameSelect={setSelectedFrameIndex}
+                selectedFrameIndices={selectedFrameIndices}
+                onFrameSelect={handleFrameSelect}
               />
             </div>
 
@@ -166,8 +230,10 @@ const AppContent: React.FC = () => {
               <AIControlPanel
                 onAnalyze={handleAnalyzeVideo}
                 onEdit={handleEditFrame}
+                onBatchEdit={handleBatchEdit}
                 suggestions={aiSuggestions}
                 selectedFrame={selectedFrameIndex !== null ? frames[selectedFrameIndex] : null}
+                selectedFrameIndices={selectedFrameIndices}
               />
             </div>
           </div>
