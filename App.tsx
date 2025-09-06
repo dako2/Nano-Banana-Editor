@@ -4,15 +4,17 @@ import { FrameGallery } from './components/FrameGallery';
 import { AIControlPanel } from './components/AIControlPanel';
 import { Header } from './components/Header';
 import { LoadingOverlay } from './components/LoadingOverlay';
-import { analyzeVideoFrames, editFrame } from './services/geminiService';
-import type { Frame, AISuggestion } from './types';
+import { analyzeVideoFrames, editFrame, analyzeVideoForClips } from './services/geminiService';
+import type { Frame, AISuggestion, ClipSuggestion } from './types';
 import { VideoTrimmer } from './components/VideoTrimming/VideoTrimmer';
 import { VideoPreview } from './components/VideoPreview';
 import { VideoProvider, useVideo } from './contexts/VideoContext';
 
 const AppContent: React.FC = () => {
   const [selectedFileForTrimming, setSelectedFileForTrimming] = useState<File | null>(null);
+  const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>([]);
+  const [clipSuggestion, setClipSuggestion] = useState<ClipSuggestion | null>(null);
   const [selectedFrameIndex, setSelectedFrameIndex] = useState<number | null>(null);
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -38,14 +40,17 @@ const AppContent: React.FC = () => {
   const handleFileSelect = useCallback((file: File) => {
     clearVideoData();
     setAiSuggestions([]);
+    setClipSuggestion(null);
     setSelectedFrameIndex(null);
     setErrorMessage(null);
+    setOriginalFile(file);
     setSelectedFileForTrimming(file);
   }, [clearVideoData]);
 
   const handleTrimConfirm = useCallback(async (file: File, startTime: number, endTime: number) => {
     setSelectedFileForTrimming(null);
     setAiSuggestions([]);
+    setClipSuggestion(null);
     setSelectedFrameIndex(null);
     await loadAndProcessVideo(file, 1, { startTime, endTime });
   }, [loadAndProcessVideo]);
@@ -72,6 +77,53 @@ const AppContent: React.FC = () => {
       setLoadingMessage(null);
     }
   }, [frames]);
+
+  const handleAnalyzeClips = useCallback(async () => {
+    if (frames.length === 0) {
+      setErrorMessage("No frames to analyze. Please upload a video first.");
+      return;
+    }
+    setLoadingMessage('Finding 7-second viral clip...');
+    setErrorMessage(null);
+    try {
+      const clipSuggestion = await analyzeVideoForClips(frames.map(f => f.data));
+      setClipSuggestion(clipSuggestion);
+    } catch (error) {
+      console.error("Error analyzing clips:", error);
+      setErrorMessage("Failed to analyze clips. Please check the console for details.");
+    } finally {
+      setLoadingMessage(null);
+    }
+  }, [frames]);
+
+  const handleUseClip = useCallback(async (startFrameIndex: number, endFrameIndex: number) => {
+    if (!originalFile) {
+      setErrorMessage("No original video file available to trim.");
+      return;
+    }
+    
+    // Calculate time range based on frame indices
+    // Assuming 1 FPS for frame extraction (as used in loadAndProcessVideo)
+    const framesPerSecond = 1;
+    const startTime = startFrameIndex / framesPerSecond;
+    const endTime = (endFrameIndex + 1) / framesPerSecond;
+    
+    setLoadingMessage('Trimming video to 7-second clip...');
+    setErrorMessage(null);
+    
+    try {
+      // Clear current data and re-process with the new trim range
+      setAiSuggestions([]);
+      setClipSuggestion(null);
+      setSelectedFrameIndex(null);
+      await loadAndProcessVideo(originalFile, 1, { startTime, endTime });
+    } catch (error) {
+      console.error("Error trimming video:", error);
+      setErrorMessage("Failed to trim video. Please try again.");
+    } finally {
+      setLoadingMessage(null);
+    }
+  }, [originalFile, loadAndProcessVideo]);
 
   const handleEditFrame = useCallback(async (prompt: string) => {
     if (selectedFrameIndex === null) {
@@ -138,7 +190,10 @@ const AppContent: React.FC = () => {
               <AIControlPanel
                 onAnalyze={handleAnalyzeVideo}
                 onEdit={handleEditFrame}
+                onAnalyzeClips={handleAnalyzeClips}
+                onUseClip={handleUseClip}
                 suggestions={aiSuggestions}
+                clipSuggestion={clipSuggestion}
                 selectedFrame={selectedFrameIndex !== null ? frames[selectedFrameIndex] : null}
               />
             </div>

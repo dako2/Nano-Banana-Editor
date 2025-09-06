@@ -1,7 +1,7 @@
-import type { AISuggestion, Frame } from '../types';
+import type { AISuggestion, Frame, ClipSuggestion } from '../types';
 import { geminiClient } from './geminiClient';
 import { promptService } from './promptService';
-import { suggestionSchema } from '../schemas/geminiSchemas';
+import { suggestionSchema, clipSuggestionSchema } from '../schemas/geminiSchemas';
 import { base64ToPart } from '../utils/apiUtils';
 
 /**
@@ -29,6 +29,28 @@ export const analyzeVideoFrames = async (frames: string[]): Promise<AISuggestion
     const jsonText = response.text.trim();
     const suggestions = JSON.parse(jsonText);
     return suggestions as AISuggestion[];
+};
+
+/**
+ * Analyzes video frames to identify the best 7-second clip for viral content.
+ * @param frames An array of base64 encoded frame data.
+ * @returns A promise that resolves to a ClipSuggestion.
+ */
+export const analyzeVideoForClips = async (frames: string[]): Promise<ClipSuggestion> => {
+    const prompt = promptService.get('sevenSecondShorts');
+    
+    const imageParts = frames.map(base64ToPart);
+
+    const response = await geminiClient.generateJson(
+        "gemini-2.5-flash",
+        prompt,
+        imageParts,
+        clipSuggestionSchema
+    );
+
+    const jsonText = response.text.trim();
+    const clipSuggestion = JSON.parse(jsonText);
+    return clipSuggestion as ClipSuggestion;
 };
 
 /**
