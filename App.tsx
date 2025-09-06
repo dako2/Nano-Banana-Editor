@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { FileUpload } from './components/FileUpload';
+import { FileUpload } from './components/VideoImport/FileUpload';
 import { FrameGallery } from './components/FrameGallery';
 import { AIControlPanel } from './components/AIControlPanel';
 import { Header } from './components/Header';
@@ -7,7 +7,7 @@ import { LoadingOverlay } from './components/LoadingOverlay';
 import { useVideoProcessor } from './hooks/useVideoProcessor';
 import { analyzeVideoFrames, editFrame } from './services/geminiService';
 import type { Frame, AISuggestion } from './types';
-import { VideoTrimmer } from './components/VideoTrimmer';
+import { VideoTrimmer } from './components/VideoTrimming/VideoTrimmer';
 import { VideoPreview } from './components/VideoPreview';
 
 const App: React.FC = () => {
