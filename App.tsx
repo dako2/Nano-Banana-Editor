@@ -99,7 +99,7 @@ const AppContent: React.FC = () => {
       setErrorMessage("Video trim range is not set. Please re-process the video.");
       return;
     }
-    setLoadingMessage('Finding 7-second viral clip...');
+    setLoadingMessage('Finding optimized viral clip...');
     setErrorMessage(null);
     try {
       const clipSuggestion = await analyzeVideoForClips(trimmedVideoFile, trimRange.start, trimRange.end);
@@ -122,7 +122,7 @@ const AppContent: React.FC = () => {
     const absoluteStartTime = (trimRange?.start || 0) + startTime;
     const absoluteEndTime = (trimRange?.start || 0) + endTime;
     
-    setLoadingMessage('Trimming video to 7-second clip...');
+    setLoadingMessage('Trimming video to optimized clip...');
     setErrorMessage(null);
     
     try {

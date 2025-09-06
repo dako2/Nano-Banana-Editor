@@ -99,14 +99,14 @@ const ClipAnalysisSection: React.FC<{
 
     return (
         <div className="mt-6 p-4 border border-dark-border rounded-lg bg-gray-900/50">
-            <h3 className="text-lg font-display text-brand-pink mb-3">7-Second Viral Clips</h3>
+            <h3 className="text-lg font-display text-brand-pink mb-3">Optimized Clips</h3>
             
             <button
                 onClick={handleAnalyzeClipsClick}
                 disabled={!hasFrames || hasAnalyzedClips}
                 className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-2 px-4 rounded-md hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-bg focus:ring-brand-pink transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed"
             >
-                {hasAnalyzedClips ? 'Clip Analysis Complete' : 'Find 7-Second Viral Clip'}
+                {hasAnalyzedClips ? 'Clip Analysis Complete' : 'Find Optimized Viral Clip'}
             </button>
 
             {clipSuggestion && (
@@ -142,7 +142,7 @@ const ClipAnalysisSection: React.FC<{
                                 onClick={() => onUseClip(clipSuggestion.startTime, clipSuggestion.endTime)}
                                 className="w-full mt-3 bg-gradient-to-r from-green-600 to-teal-600 text-white font-bold py-2 px-4 rounded-md hover:from-green-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-bg focus:ring-green-500 transition-colors"
                             >
-                                Use This 7-Second Clip
+                                Use This Optimized Clip
                             </button>
                         )}
                     </div>
@@ -174,7 +174,7 @@ export const AIControlPanel: React.FC<AIControlPanelProps> = ({
 
     return (
         <div className="bg-dark-surface rounded-lg shadow-lg p-6 border border-dark-border h-full flex flex-col animate-fadeIn">
-            <h2 className="text-2xl font-display text-brand-teal mb-4">AI Assistant</h2>
+            {/* <h2 className="text-2xl font-display text-brand-teal mb-4">AI Assistant</h2>
             
             <button
                 onClick={handleAnalyzeClick}
@@ -200,7 +200,7 @@ export const AIControlPanel: React.FC<AIControlPanelProps> = ({
                         {hasAnalyzed ? 'No specific suggestions were generated.' : 'Click "Analyze Video" to get AI-powered editing ideas.'}
                     </p>
                 )}
-            </div>
+            </div> */}
 
             <ClipAnalysisSection 
                 clipSuggestion={clipSuggestion} 

@@ -23,19 +23,19 @@ export const clipSuggestionSchema = {
     properties: {
       startTime: {
         type: Type.NUMBER,
-        description: 'The starting time in seconds for the 7-second clip (relative to the analyzed video segment).',
+        description: 'The starting time in seconds for the optimized clip (relative to the analyzed video segment).',
       },
       endTime: {
         type: Type.NUMBER,
-        description: 'The ending time in seconds for the 7-second clip (relative to the analyzed video segment).',
+        description: 'The ending time in seconds for the optimized clip (relative to the analyzed video segment).',
       },
       duration: {
         type: Type.NUMBER,
-        description: 'The duration of the clip in seconds (should be approximately 7 seconds).',
+        description: 'The duration of the clip in seconds (ideally 5-10 seconds for optimal virality).',
       },
       reason: {
         type: Type.STRING,
-        description: 'Explanation of why this specific 7-second sequence was chosen for viral potential.',
+        description: 'Explanation of why this specific sequence was chosen for viral potential.',
       },
       viralPotential: {
         type: Type.STRING,
