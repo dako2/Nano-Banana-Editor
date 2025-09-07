@@ -4,7 +4,7 @@ import { FrameGallery } from './components/FrameGallery';
 import { AIControlPanel } from './components/AIControlPanel';
 import { Header } from './components/Header';
 import { LoadingOverlay } from './components/LoadingOverlay';
-import { analyzeVideoFile, analyzeVideoForClips, editFrame } from './services/geminiService';
+import { analyzeVideoFile, analyzeVideoForClips, editFrame, editFrameBootstrap, shouldContinueBootstrap } from './services/geminiService';
 import type { Frame, AISuggestion, ClipSuggestion } from './types';
 import { VideoTrimmer } from './components/VideoTrimming/VideoTrimmer';
 import { VideoPreview } from './components/VideoPreview';
@@ -19,6 +19,9 @@ const AppContent: React.FC = () => {
   const [clipSuggestion, setClipSuggestion] = useState<ClipSuggestion | null>(null);
   const [selectedFrameIndex, setSelectedFrameIndex] = useState<number | null>(null);
   const [selectedFrameIndices, setSelectedFrameIndices] = useState<number[]>([]);
+  const [bootstrapMode, setBootstrapMode] = useState<boolean>(false);
+  const [isAutoBootstrapping, setIsAutoBootstrapping] = useState<boolean>(false);
+  const [bootstrapProgress, setBootstrapProgress] = useState<{ current: number; total: number; reason?: string } | null>(null);
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -151,13 +154,19 @@ const AppContent: React.FC = () => {
         return;
     }
 
-    // Get adjacent frames for context
-    const previousFrame = selectedFrameIndex > 0 ? frames[selectedFrameIndex - 1] : null;
-    const nextFrame = selectedFrameIndex < frames.length - 1 ? frames[selectedFrameIndex + 1] : null;
+    if (bootstrapMode) {
+        // Start automatic bootstrapping process
+        await startAutoBootstrap(selectedFrameIndex, prompt);
+        return;
+    }
 
     setLoadingMessage('Editing frame with Nano Banana...');
     setErrorMessage(null);
+    
     try {
+        // Regular mode: use original frames as context
+        const previousFrame = selectedFrameIndex > 0 ? frames[selectedFrameIndex - 1] : null;
+        const nextFrame = selectedFrameIndex < frames.length - 1 ? frames[selectedFrameIndex + 1] : null;
         const editedFrameData = await editFrame(currentFrame, prompt, previousFrame, nextFrame);
         
         // Update the primary edited frame
@@ -187,7 +196,112 @@ const AppContent: React.FC = () => {
     } finally {
         setLoadingMessage(null);
     }
-  }, [selectedFrameIndex, frames, updateEditedFrame]);
+  }, [selectedFrameIndex, frames, updateEditedFrame, bootstrapMode]);
+
+  const startAutoBootstrap = useCallback(async (startFrameIndex: number, prompt: string) => {
+    console.log('🚀 Starting auto-bootstrap process...', { startFrameIndex, prompt, totalFrames: frames.length });
+    console.log('🔧 Setting isAutoBootstrapping to true...');
+    setIsAutoBootstrapping(true);
+    setBootstrapProgress({ current: 0, total: frames.length - startFrameIndex });
+    
+    try {
+      let currentIndex = startFrameIndex;
+      let editedPreviousFrame: Frame | null = null;
+      let shouldContinue = true; // Use local variable instead of state
+      
+      console.log(`🔄 Starting loop: currentIndex=${currentIndex}, frames.length=${frames.length}`);
+      
+      while (currentIndex < frames.length && shouldContinue) {
+        console.log(`📸 Processing frame ${currentIndex} of ${frames.length - 1}...`);
+        console.log(`🔍 Loop condition check: currentIndex(${currentIndex}) < frames.length(${frames.length}) = ${currentIndex < frames.length}, isAutoBootstrapping=${isAutoBootstrapping}`);
+        
+        const currentFrame = frames[currentIndex];
+        console.log(`📋 Current frame:`, currentFrame);
+        setBootstrapProgress(prev => prev ? { ...prev, current: currentIndex - startFrameIndex + 1 } : null);
+        
+        let editedFrameData: string;
+        
+        if (currentIndex === startFrameIndex) {
+          // First frame - use regular edit
+          console.log('🎯 First frame - using regular edit mode');
+          const previousFrame = currentIndex > 0 ? frames[currentIndex - 1] : null;
+          const nextFrame = currentIndex < frames.length - 1 ? frames[currentIndex + 1] : null;
+          editedFrameData = await editFrame(currentFrame, prompt, previousFrame, nextFrame);
+          console.log('✅ First frame edited successfully');
+        } else {
+          // Subsequent frames - use bootstrap edit
+          console.log('🔄 Bootstrap frame - using edited previous frame as reference');
+          if (!editedPreviousFrame) {
+            throw new Error("No edited previous frame available for bootstrap");
+          }
+          
+          // Check if we should continue bootstrapping
+          console.log('🤔 Checking if we should continue bootstrapping...');
+          const nextFrame = currentIndex < frames.length - 1 ? frames[currentIndex + 1] : null;
+          console.log(`🔍 Next frame available: ${!!nextFrame}, currentIndex: ${currentIndex}, frames.length: ${frames.length}`);
+          
+          const decision = await shouldContinueBootstrap(currentFrame, editedPreviousFrame, nextFrame, prompt);
+          console.log('📋 Bootstrap decision:', decision);
+          
+          if (decision.decision === 'STOP') {
+            console.log('🛑 Bootstrap stopped by AI decision:', decision.reason);
+            setBootstrapProgress(prev => prev ? { ...prev, reason: decision.reason } : null);
+            setLoadingMessage(`Bootstrap stopped: ${decision.reason}`);
+            shouldContinue = false;
+            break;
+          }
+          
+          console.log('✅ Continuing bootstrap - editing frame with previous frame reference');
+          editedFrameData = await editFrameBootstrap(currentFrame, prompt, editedPreviousFrame, nextFrame);
+          console.log('✅ Bootstrap frame edited successfully');
+        }
+        
+        // Create the edited frame
+        const newEditedFrame: Frame = {
+          id: currentFrame.id,
+          data: editedFrameData,
+          mimeType: currentFrame.mimeType
+        };
+        
+        // Update edited frames
+        console.log(`💾 Updating edited frame ${currentIndex}...`);
+        updateEditedFrame(currentIndex, newEditedFrame);
+        
+        // Set as the edited previous frame for next iteration
+        editedPreviousFrame = newEditedFrame;
+        currentIndex++;
+        
+        console.log(`⏳ Waiting 500ms before next frame...`);
+        // Small delay to prevent overwhelming the API
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Check if we have more frames to process
+        if (currentIndex >= frames.length) {
+          console.log('🏁 Reached end of frames, stopping auto-bootstrap');
+          shouldContinue = false;
+        }
+      }
+      
+      const totalEdited = currentIndex - startFrameIndex;
+      console.log(`🎉 Auto-bootstrap completed! Edited ${totalEdited} frames.`);
+      setLoadingMessage(`Auto-bootstrap completed! Edited ${totalEdited} frames.`);
+    } catch (error) {
+      console.error("❌ Error in auto-bootstrap:", error);
+      setErrorMessage("Auto-bootstrap failed. Please check the console for details.");
+    } finally {
+      console.log('🏁 Auto-bootstrap process finished');
+      setIsAutoBootstrapping(false);
+      setBootstrapProgress(null);
+      setLoadingMessage(null);
+    }
+  }, [frames, updateEditedFrame, isAutoBootstrapping]);
+
+  const stopAutoBootstrap = useCallback(() => {
+    console.log('🛑 Stopping auto-bootstrap...');
+    setIsAutoBootstrapping(false);
+    setBootstrapProgress(null);
+    setLoadingMessage(null);
+  }, []);
 
   const handleFrameSelect = useCallback((index: number, isShiftClick: boolean = false) => {
     if (isShiftClick) {
@@ -292,6 +406,11 @@ const AppContent: React.FC = () => {
                 clipSuggestion={clipSuggestion}
                 selectedFrame={selectedFrameIndex !== null ? frames[selectedFrameIndex] : null}
                 selectedFrameIndices={selectedFrameIndices}
+                bootstrapMode={bootstrapMode}
+                onBootstrapToggle={setBootstrapMode}
+                isAutoBootstrapping={isAutoBootstrapping}
+                bootstrapProgress={bootstrapProgress}
+                onStopBootstrap={stopAutoBootstrap}
               />
             </div>
           </div>

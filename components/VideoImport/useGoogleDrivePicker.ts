@@ -26,7 +26,7 @@ export const useGoogleDrivePicker = ({ onVideoSelect }: GoogleDrivePickerOptions
   // Effect to load the Google API and Identity Services scripts.
   useEffect(() => {
     if (!IS_CONFIGURED) {
-      console.warn("Google Drive Picker is not configured. Missing GOOGLE_CLIENT_ID or API_KEY.");
+      // Silently return if not configured - this is expected in development
       return;
     }
 

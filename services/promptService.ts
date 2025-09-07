@@ -1,27 +1,40 @@
 // services/promptService.ts
 
 let prompts: Record<string, string> = {};
-let promptsLoaded = false;
-let loadingPromise: Promise<void> | null = null;
+let isLoaded = false;
 
-/**
- * Loads prompts from the JSON file
- */
-async function loadPrompts(): Promise<void> {
-  if (promptsLoaded) return;
-  if (loadingPromise) return loadingPromise;
+const loadPrompts = async (): Promise<Record<string, string>> => {
+  if (isLoaded) return prompts;
   
-  loadingPromise = (async () => {
+  try {
     const response = await fetch('/prompts.json');
-    if (!response.ok) {
-      throw new Error("Failed to load prompts.json configuration from server.");
+    if (response.ok) {
+      prompts = await response.json();
+    } else {
+      throw new Error("Failed to load prompts.json");
     }
-    prompts = await response.json();
-    promptsLoaded = true;
-  })();
+  } catch (error) {
+    console.error('Failed to load prompts from file:', error);
+    // Fallback: try to load from localStorage
+    try {
+      const savedPrompts = localStorage.getItem('customPrompts');
+      if (savedPrompts) {
+        prompts = JSON.parse(savedPrompts);
+      }
+    } catch (localError) {
+      console.error('Failed to load prompts from localStorage:', localError);
+      // Use default prompts as last resort
+      prompts = {
+        editFrame: "You are a video editing AI. Apply the user's edit request to the current frame.",
+        editFrameBootstrap: "You are a video editing AI using bootstrapping mode. Use the edited previous frame as reference.",
+        analyzeVideo: "You are an expert video analyst. Analyze the video and provide suggestions."
+      };
+    }
+  }
   
-  return loadingPromise;
-}
+  isLoaded = true;
+  return prompts;
+};
 
 /**
  * An abstract system for retrieving and formatting prompts.
@@ -55,5 +68,21 @@ export const promptService = {
       formattedPrompt = formattedPrompt.replace(placeholder, String(value));
     }
     return formattedPrompt;
+  },
+
+  /**
+   * Updates the prompts cache with new prompts
+   * @param newPrompts The new prompts to cache
+   */
+  updatePrompts(newPrompts: Record<string, string>): void {
+    prompts = { ...prompts, ...newPrompts };
+  },
+
+  /**
+   * Gets all current prompts
+   */
+  async getAllPrompts(): Promise<Record<string, string>> {
+    await loadPrompts();
+    return { ...prompts };
   }
 };
